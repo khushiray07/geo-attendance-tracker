@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import DashboardLayout from '../components/DashboardLayout';
+import WorkingHoursCard from '../components/WorkingHoursCard';
 import { Calendar, Clock, Briefcase, AlertTriangle, Fingerprint, MapPin } from 'lucide-react';
 import { MapContainer, TileLayer, Circle, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
@@ -29,6 +30,7 @@ export default function EmployeeDashboard() {
   const [autoStatus, setAutoStatus] = useState<any>(null);
   const [onsiteStatus, setOnsiteStatus] = useState<any>(null);
   const [outsideSince, setOutsideSince] = useState<number | null>(null);
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
     fetchData();
@@ -47,6 +49,11 @@ export default function EmployeeDashboard() {
     const timer = window.setInterval(sendLocationHeartbeat, LOCATION_HEARTBEAT_MS);
     return () => window.clearInterval(timer);
   }, [todayRecord?.check_in_time, todayRecord?.check_out_time]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -187,6 +194,7 @@ export default function EmployeeDashboard() {
 
   const dateOptions: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' };
   const todayStr = new Date().toLocaleDateString('en-US', dateOptions);
+  const todayWorkingMinutes = currentWorkingMinutes(todayRecord, now);
 
   return (
     <DashboardLayout title="Dashboard">
@@ -201,12 +209,12 @@ export default function EmployeeDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Main Status & Map Card */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 flex flex-col md:flex-row gap-6">
-          <div className="flex-1 flex flex-col justify-between">
+      <div className="mb-8 grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(320px,1.05fr)] xl:grid-cols-1">
+          {/* Today's Status Card */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-6">
             <div>
-              <div className="flex items-center gap-3 mb-6">
+              <div className="mb-6 flex flex-wrap items-center gap-3">
                 <h2 className="text-xl font-bold text-gray-900">Today's Status</h2>
                 <span className={`text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wider ${todayRecord?.is_late ? 'bg-warning-bg text-warning-text' : 'bg-success-bg text-success-text'}`}>
                   {todayRecord?.is_late ? 'LATE' : 'ON-TIME'}
@@ -234,7 +242,7 @@ export default function EmployeeDashboard() {
               </div>
             </div>
 
-            <div>
+            <div className="mt-2">
               {autoStatus?.eligible && !isCheckedIn && (
                 <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
                   <div className="flex items-start gap-3 text-blue-800">
@@ -276,35 +284,52 @@ export default function EmployeeDashboard() {
             </div>
           </div>
 
-          <div className="flex-1 rounded-xl overflow-hidden min-h-[250px] relative border border-gray-100 bg-gray-50">
-            {officeSettings && (
-              <MapContainer 
-                center={[officeSettings.latitude, officeSettings.longitude]} 
-                zoom={16} 
-                scrollWheelZoom={false}
-                zoomControl={false}
-                style={{ height: '100%', width: '100%' }}
-              >
-                <TileLayer
-                  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-                />
-                <Circle 
+          {/* Map Card */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-4">
+            <div className="mb-3 flex items-center justify-between gap-3 px-1">
+              <div>
+                <h2 className="text-lg font-black text-gray-950">Office Geofence</h2>
+                <p className="mt-1 text-sm font-medium text-gray-500">Live position against the approved attendance radius.</p>
+              </div>
+              <span className="hidden rounded-full bg-brand-light px-3 py-1 text-xs font-black text-brand sm:inline-flex">
+                {officeSettings?.radius_meters || '--'}m radius
+              </span>
+            </div>
+            <div className="relative h-[240px] overflow-hidden rounded-xl border border-gray-100 bg-gray-50 sm:h-[300px] lg:h-[360px] xl:h-[330px]">
+              {officeSettings && (
+                <MapContainer
                   center={[officeSettings.latitude, officeSettings.longitude]}
-                  radius={officeSettings.radius_meters}
-                  pathOptions={{ color: '#0A58CA', fillColor: '#0A58CA', fillOpacity: 0.1, weight: 1 }}
-                />
-                {currentPos && (
-                  <Marker position={currentPos}>
-                    <Popup>Your current location</Popup>
-                  </Marker>
-                )}
-              </MapContainer>
-            )}
+                  zoom={16}
+                  scrollWheelZoom={false}
+                  zoomControl={false}
+                  style={{ height: '100%', width: '100%' }}
+                >
+                  <TileLayer
+                    url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                  />
+                  <Circle
+                    center={[officeSettings.latitude, officeSettings.longitude]}
+                    radius={officeSettings.radius_meters}
+                    pathOptions={{ color: '#0A58CA', fillColor: '#0A58CA', fillOpacity: 0.1, weight: 1 }}
+                  />
+                  {currentPos && (
+                    <Marker position={currentPos}>
+                      <Popup>Your current location</Popup>
+                    </Marker>
+                  )}
+                </MapContainer>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Metrics Column */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
+          <WorkingHoursCard
+            minutes={todayWorkingMinutes}
+            checkInTime={todayRecord?.check_in_time}
+            checkOutTime={todayRecord?.check_out_time}
+            attendanceType={todayRecord?.attendance_type}
+          />
           <div className={`rounded-2xl border p-5 shadow-sm ${onsiteStatus?.activeBreach ? 'border-amber-200 bg-warning-bg' : 'border-green-100 bg-success-bg'}`}>
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className={`text-base font-black ${onsiteStatus?.activeBreach ? 'text-warning-text' : 'text-success-text'}`}>
@@ -326,6 +351,11 @@ export default function EmployeeDashboard() {
               <div className="font-black text-gray-900">Today total not-onsite time: {onsiteStatus?.todayBreachMinutes || 0} minutes</div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Monthly Metrics */}
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-brand-light text-brand flex items-center justify-center">
               <Calendar size={24} />
@@ -362,7 +392,6 @@ export default function EmployeeDashboard() {
               <div className="text-2xl font-bold text-gray-900">{summary.wfh_days || 0}</div>
             </div>
           </div>
-        </div>
       </div>
 
       {/* Recent History Table */}
@@ -433,4 +462,30 @@ function formatInterval(interval: any) {
   const end = interval?.ended_at ? new Date(interval.ended_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now';
   const minutes = interval?.duration_minutes || 0;
   return `${start} - ${end} (${minutes}m)`;
+}
+
+function currentWorkingMinutes(record: any, now: Date) {
+  if (!record?.check_in_time) return 0;
+  if (Number(record.working_minutes) > 0 || record.check_out_time) {
+    return Number(record.working_minutes || minutesBetweenTodayTimes(record.check_in_time, record.check_out_time));
+  }
+
+  return minutesBetweenTodayTimes(record.check_in_time, timeFromDate(now), now);
+}
+
+function minutesBetweenTodayTimes(startTime: string, endTime?: string | null, fallbackEnd = new Date()) {
+  const start = dateFromTime(startTime, fallbackEnd);
+  const end = endTime ? dateFromTime(endTime, fallbackEnd) : fallbackEnd;
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+}
+
+function dateFromTime(time: string, baseDate: Date) {
+  const [hours = 0, minutes = 0, seconds = 0] = String(time).split(':').map(Number);
+  const date = new Date(baseDate);
+  date.setHours(hours, minutes, seconds, 0);
+  return date;
+}
+
+function timeFromDate(date: Date) {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:00`;
 }

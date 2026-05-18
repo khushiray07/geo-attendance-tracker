@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="300" viewBox="0 0 520 300" role="img" aria-labelledby="title desc">
+  <title id="title">GeoMark</title>
+  <desc id="desc">GeoMark location pin logo with blue, cyan, and violet gradients.</desc>
+  <defs>
+    <linearGradient id="pinA" x1="158" y1="62" x2="322" y2="222" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7EE7E1"/>
+      <stop offset="0.38" stop-color="#55B8F4"/>
+      <stop offset="0.72" stop-color="#4267E8"/>
+      <stop offset="1" stop-color="#A77BF2"/>
+    </linearGradient>
+    <linearGradient id="pinB" x1="296" y1="62" x2="190" y2="221" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A8F1E3"/>
+      <stop offset="0.46" stop-color="#73C9F3"/>
+      <stop offset="1" stop-color="#3763DD"/>
+    </linearGradient>
+    <linearGradient id="pinC" x1="185" y1="125" x2="260" y2="229" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C781F4"/>
+      <stop offset="0.52" stop-color="#7768EF"/>
+      <stop offset="1" stop-color="#B9F0EE"/>
+    </linearGradient>
+    <filter id="softShadow" x="126" y="38" width="230" height="230" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="12" stdDeviation="15" flood-color="#2563EB" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect width="520" height="300" rx="32" fill="#FFFFFF" fill-opacity="0"/>
+
+  <g opacity="0.46" fill="none" stroke="#CBD5E1" stroke-linecap="round" stroke-width="1.6">
+    <path d="M143 112c10-42 48-73 94-73 43 0 80 28 92 67"/>
+    <path d="M131 117c9-51 54-90 107-90 51 0 95 35 106 84"/>
+    <path d="M154 118c7-34 37-60 74-65"/>
+    <path d="M320 55c12 13 21 28 26 46"/>
+  </g>
+  <circle cx="331" cy="81" r="7" fill="#61B4EA" opacity="0.9"/>
+
+  <g filter="url(#softShadow)">
+    <path fill="url(#pinA)" d="M240.1 50.5c-47.2 0-85.5 36.9-85.5 82.4 0 60.8 85.5 117.1 85.5 117.1s85.5-56.3 85.5-117.1c0-45.5-38.3-82.4-85.5-82.4Zm0 44.3c22.2 0 40.3 18 40.3 40.1s-18.1 40-40.3 40-40.2-17.9-40.2-40 18-40.1 40.2-40.1Z"/>
+    <path fill="url(#pinB)" fill-opacity="0.9" d="M242.3 50.7c44.5 1.2 80.1 37.6 80.1 82.2 0 31-22.2 63.2-44.3 86.2-3.9 4-10.7 1.2-10.7-4.4v-77.9c0-24.7-16.5-43.6-39.9-43.6-12.7 0-23.1 5.5-30.9 13.7 10.7-33.8 25.7-56.7 45.7-56.2Z"/>
+    <path fill="url(#pinC)" fill-opacity="0.88" d="M176.6 105.4c13.3-7.8 29.4-4.5 44.2 8.3 17.9 15.5 31.8 45.2 48.1 91.4 7.7 21.7-10.7 41.4-28.8 44.9 0 0-85.5-56.3-85.5-117.1 0-10 1.8-19.3 5.1-28 4.9 3.3 10.5 4.2 16.9.5Z"/>
+    <circle cx="240" cy="135" r="40" fill="#FFFFFF"/>
+  </g>
+
+  <text x="260" y="287" fill="#17324D" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="74" font-weight="800" text-anchor="middle" letter-spacing="0">GeoMark</text>
+</svg>

@@ -52,10 +52,10 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-gray-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:flex lg:flex-col ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6">
-          <div className="flex items-center gap-2 text-brand font-bold text-xl mb-2">
-            Geo Attendance
-          </div>
-          <div className="flex items-center gap-3 mt-8 p-3 rounded-xl bg-gray-100">
+          <Link to={isAdmin ? '/admin' : '/dashboard'} className="block rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-light">
+            <img src="/geomark-logo.svg" alt="GeoMark" className="h-20 w-44 object-contain object-left" />
+          </Link>
+          <div className="flex items-center gap-3 mt-6 p-3 rounded-xl bg-gray-100">
             <div className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center font-bold">
               {isAdmin ? 'A' : 'E'}
             </div>
