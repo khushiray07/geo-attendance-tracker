@@ -117,17 +117,21 @@ function dateKey(value: string | Date) {
   return String(value).slice(0, 10);
 }
 
-function isWorkingDay(date: string) {
-  const day = new Date(`${date}T00:00:00`).getDay();
-  return day !== 0 && day !== 6;
-}
-
 function displayRecord(day: { date: string; inMonth: boolean }, record: any) {
-  if (record) return { ...record, date: dateKey(record.date) };
-  if (!day.inMonth || !isWorkingDay(day.date)) return null;
-
   const today = dateKey(new Date());
-  if (day.date > today) return null;
+  if (!day.inMonth || day.date > today) return null;
+
+  if (record) {
+    const normalizedRecord = { ...record, date: dateKey(record.date) };
+    if (String(normalizedRecord.status || '').toLowerCase() === 'pending') {
+      return {
+        ...normalizedRecord,
+        status: 'absent_today',
+        admin_note: normalizedRecord.admin_note || 'No attendance recorded today'
+      };
+    }
+    return normalizedRecord;
+  }
 
   return {
     id: `absent-${day.date}`,
@@ -150,7 +154,6 @@ function statusLabel(record: any) {
   if (record.attendance_type === 'on_duty') return { text: 'On Duty', className: 'bg-purple-50 text-purple-700' };
   if (record.attendance_type === 'leave') return { text: 'Leave', className: 'bg-gray-200 text-gray-700' };
   if (status === 'absent' || status === 'absent_today') return { text: status === 'absent_today' ? 'Absent Today' : 'Absent', className: 'bg-danger-bg text-danger-text' };
-  if (status === 'pending') return { text: 'Pending', className: 'bg-[#F4F7FE] text-gray-600' };
   if (status === 'missing_checkout_auto_closed' || status === 'auto_checkout') return { text: 'Auto Checkout', className: 'bg-danger-bg text-danger-text' };
   if (record.check_in_time && !record.check_out_time) return { text: 'Missing Checkout', className: 'bg-danger-bg text-danger-text' };
   if (record.is_late || status === 'late') return { text: 'Present', className: 'bg-success-bg text-success-text', meta: 'Late', metaClassName: 'bg-warning-bg text-warning-text' };
