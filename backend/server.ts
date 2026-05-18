@@ -54,13 +54,32 @@ async function start() {
   app.use('/organizations', organizationRoutes);
   app.use('/reports', reportRoutes);
 
-  app.listen(PORT, () => {
+  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('Unhandled request error:', err);
+    res.status(err.status || 500).json({ message: err.message || 'Internal server error' });
+  });
+
+  const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+  });
+  server.on('error', (err) => {
+    console.error('Server failed:', err);
+    process.exit(1);
   });
   scheduleDailyAutoCheckout();
 }
 
 start().catch((err) => {
   console.error('Failed to start server:', err.message);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason);
+  process.exit(1);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
   process.exit(1);
 });
