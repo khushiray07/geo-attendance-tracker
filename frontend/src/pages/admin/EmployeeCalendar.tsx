@@ -21,6 +21,8 @@ export default function EmployeeCalendar() {
     api.get(`/admin/attendance/employee/${employeeId}/calendar?month=${month}`).then(({ data }) => setRecords(data));
   }, [employeeId, month]);
 
+  const recordByDate = new Map(records.map((record) => [dateKey(record.date), record]));
+
   return (
     <DashboardLayout title="Calendar">
       <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -37,22 +39,34 @@ export default function EmployeeCalendar() {
       </div>
 
       <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="mb-4 flex flex-wrap gap-2 text-xs font-black">
+          <Legend label="Present" className="bg-success-bg text-success-text" />
+          <Legend label="On Time" className="bg-green-50 text-green-700" />
+          <Legend label="Late" className="bg-warning-bg text-warning-text" />
+          <Legend label="Absent" className="bg-danger-bg text-danger-text" />
+          <Legend label="Pending" className="bg-[#F4F7FE] text-gray-600" />
+        </div>
         <div className="grid grid-cols-7 gap-2 text-center text-xs font-black uppercase tracking-wider text-gray-400">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <div key={day}>{day}</div>)}
         </div>
         <div className="mt-2 grid grid-cols-7 gap-2">
           {calendarDays(month).map((day) => {
-            const record = records.find((item) => item.date === day.date);
+            const record = day.inMonth ? displayRecord(day, recordByDate.get(day.date)) : null;
             const badge = statusLabel(record);
             return (
               <button
                 key={day.key}
                 disabled={!day.inMonth}
                 onClick={() => record && setSelectedRecord(record)}
-                className={`min-h-20 rounded-xl border p-2 text-left ${day.inMonth ? 'border-gray-100 bg-[#FAFBFF] hover:border-brand-light' : 'border-transparent'}`}
+                className={`min-h-24 rounded-xl border p-2 text-left transition ${day.inMonth ? 'border-gray-100 bg-[#FAFBFF] hover:border-brand-light' : 'border-transparent'} ${record ? 'cursor-pointer' : ''}`}
               >
                 <div className="font-black text-gray-900">{day.label}</div>
-                {day.inMonth && badge && <div className={`mt-3 inline-flex rounded-full px-2 py-1 text-[11px] font-black ${badge.className}`}>{badge.text}</div>}
+                {day.inMonth && badge && (
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-black ${badge.className}`}>{badge.text}</span>
+                    {badge.meta && <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-black ${badge.metaClassName}`}>{badge.meta}</span>}
+                  </div>
+                )}
                 {day.inMonth && record?.not_onsite_minutes > 0 && <div className="mt-1 inline-flex rounded-full bg-warning-bg px-2 py-1 text-[11px] font-black text-warning-text">Away {record.not_onsite_minutes}m</div>}
               </button>
             );
@@ -88,9 +102,45 @@ function calendarDays(month: string) {
   return Array.from({ length: 42 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
-    const dateText = date.toISOString().split('T')[0];
+    const dateText = dateKey(date);
     return { key: `${dateText}-${index}`, date: dateText, label: date.getDate(), inMonth: date.getMonth() === monthIndex - 1 };
   });
+}
+
+function dateKey(value: string | Date) {
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return String(value).slice(0, 10);
+}
+
+function isWorkingDay(date: string) {
+  const day = new Date(`${date}T00:00:00`).getDay();
+  return day !== 0 && day !== 6;
+}
+
+function displayRecord(day: { date: string; inMonth: boolean }, record: any) {
+  if (record) return { ...record, date: dateKey(record.date) };
+  if (!day.inMonth || !isWorkingDay(day.date)) return null;
+
+  const today = dateKey(new Date());
+  if (day.date > today) return null;
+
+  return {
+    id: `absent-${day.date}`,
+    date: day.date,
+    check_in_time: null,
+    check_out_time: null,
+    working_minutes: 0,
+    is_late: false,
+    status: day.date === today ? 'absent_today' : 'absent',
+    attendance_type: 'on_site',
+    admin_note: day.date === today ? 'No attendance recorded today' : 'No attendance record for this working day',
+    virtual: true
+  };
 }
 
 function statusLabel(record: any) {
@@ -99,14 +149,18 @@ function statusLabel(record: any) {
   if (record.attendance_type === 'work_from_home') return { text: 'WFH', className: 'bg-blue-50 text-blue-700' };
   if (record.attendance_type === 'on_duty') return { text: 'On Duty', className: 'bg-purple-50 text-purple-700' };
   if (record.attendance_type === 'leave') return { text: 'Leave', className: 'bg-gray-200 text-gray-700' };
-  if (status === 'absent') return { text: 'Absent', className: 'bg-gray-100 text-gray-600' };
+  if (status === 'absent' || status === 'absent_today') return { text: status === 'absent_today' ? 'Absent Today' : 'Absent', className: 'bg-danger-bg text-danger-text' };
   if (status === 'pending') return { text: 'Pending', className: 'bg-[#F4F7FE] text-gray-600' };
   if (status === 'missing_checkout_auto_closed' || status === 'auto_checkout') return { text: 'Auto Checkout', className: 'bg-danger-bg text-danger-text' };
   if (record.check_in_time && !record.check_out_time) return { text: 'Missing Checkout', className: 'bg-danger-bg text-danger-text' };
-  if (record.is_late) return { text: 'Late', className: 'bg-warning-bg text-warning-text' };
-  return { text: 'Present', className: 'bg-success-bg text-success-text' };
+  if (record.is_late || status === 'late') return { text: 'Present', className: 'bg-success-bg text-success-text', meta: 'Late', metaClassName: 'bg-warning-bg text-warning-text' };
+  return { text: 'Present', className: 'bg-success-bg text-success-text', meta: 'On Time', metaClassName: 'bg-green-50 text-green-700' };
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
   return <div className="flex justify-between gap-4 rounded-lg bg-[#F4F7FE] p-3"><span className="font-bold text-gray-500">{label}</span><span className="font-black capitalize text-gray-900">{value}</span></div>;
+}
+
+function Legend({ label, className }: { label: string; className: string }) {
+  return <span className={`rounded-full px-3 py-1 ${className}`}>{label}</span>;
 }
