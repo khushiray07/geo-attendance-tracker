@@ -28,6 +28,7 @@ Hackathon-ready employee attendance system with browser geolocation, server-side
 - Employee dashboard, attendance history, and calendar view
 - Admin dashboard, employee management, calendar, reports, and CSV export
 - Optional late check-in email via SMTP
+- Late-arrival email alerts are optional. If SMTP variables are not configured, check-in still succeeds and the backend logs: `Late email skipped because SMTP is not configured.`
 
 ## Ports
 
@@ -105,6 +106,16 @@ SEED_OFFICE_LNG=77.6185537861114
 ```
 
 If SMTP variables are empty, late check-in email is skipped safely and the app keeps working.
+
+## Late Arrival Email Alerts
+
+Late detection is always calculated on the server using:
+
+```text
+check_in_time > shift_start_time + late_threshold_minutes
+```
+
+When an employee is late, the attendance record is saved with `is_late = true`, a late check-in audit log is created, and the backend attempts to send an email only when all SMTP variables are present. Missing or failed email configuration never blocks check-in.
 
 ## Demo Credentials
 

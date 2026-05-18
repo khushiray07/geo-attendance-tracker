@@ -7,6 +7,13 @@ import { sendLateCheckInEmail } from '../utils/email';
 
 const router = Router();
 
+type EmailAlert = {
+  attempted: boolean;
+  sent: boolean;
+  skipped: boolean;
+  reason: string;
+};
+
 function todayIso() {
   return new Date().toISOString().split('T')[0];
 }
@@ -90,27 +97,63 @@ async function officeValidation(req: AuthRequest) {
   return { valid: true, lat, lng, office, distance, insideGeofence, request_ip: ip, network_configured: network.configured, network_matched: network.matched, eligible: insideGeofence && network.matched };
 }
 
-async function maybeSendLateEmail(logId: number, userId: number, organizationId: number, today: string, checkInTime: string, shiftStart: string, lateBy: number) {
-  const employee = await one('SELECT name, email FROM users WHERE id = $1', [userId]);
-  const organization = await one('SELECT name, created_by FROM organizations WHERE id = $1', [organizationId]);
-  const admin = organization?.created_by ? await one('SELECT email FROM users WHERE id = $1', [organization.created_by]) : null;
-  const result = await sendLateCheckInEmail({
-    employeeName: employee.name,
-    employeeEmail: employee.email,
-    adminEmail: admin?.email,
-    organizationName: organization?.name || 'Organization',
-    date: today,
-    checkInTime,
-    shiftStartTime: shiftStart,
-    lateByMinutes: lateBy
-  });
-  await exec('UPDATE attendance_logs SET email_sent = $1, email_error = $2 WHERE id = $3', [result.sent, result.error, logId]);
+async function maybeSendLateEmail(logId: number, userId: number, organizationId: number, today: string, checkInTime: string, shiftStart: string, lateBy: number): Promise<EmailAlert> {
+  try {
+    const employee = await one('SELECT name, email FROM users WHERE id = $1', [userId]);
+    const organization = await one('SELECT name, created_by FROM organizations WHERE id = $1', [organizationId]);
+    const admin = organization?.created_by ? await one('SELECT email FROM users WHERE id = $1', [organization.created_by]) : null;
+    console.log('ABOUT TO SEND LATE EMAIL');
+    console.log('Attempting late arrival email', {
+      userId,
+      organizationId,
+      employeeEmail: employee.email,
+      adminEmail: admin?.email || null,
+      date: today,
+      checkInTime,
+      shiftStart,
+      lateByMinutes: lateBy
+    });
+    const result = await sendLateCheckInEmail({
+      employeeName: employee.name,
+      employeeEmail: employee.email,
+      adminEmail: admin?.email,
+      organizationName: organization?.name || 'Organization',
+      date: today,
+      checkInTime,
+      shiftStartTime: shiftStart,
+      lateByMinutes: lateBy
+    });
+    await exec('UPDATE attendance_logs SET email_sent = $1, email_error = $2 WHERE id = $3', [result.sent, result.error, logId]);
+    console.log('EMAIL RESULT', {
+      attempted: true,
+      sent: result.sent,
+      skipped: Boolean(result.skipped),
+      reason: result.reason || result.error || null
+    });
+    return {
+      attempted: true,
+      sent: result.sent,
+      skipped: Boolean(result.skipped),
+      reason: result.reason || result.error || (result.sent ? 'Late email sent successfully' : 'Late email was not sent')
+    };
+  } catch (err: any) {
+    const message = err.message || 'Unknown error';
+    console.error(`Late email failed with error: ${message}`);
+    console.log('EMAIL RESULT', {
+      attempted: true,
+      sent: false,
+      skipped: false,
+      reason: message
+    });
+    return { attempted: true, sent: false, skipped: false, reason: message };
+  }
 }
 
 async function createCheckIn(req: AuthRequest, res: Response, eventType: 'check-in' | 'auto-check-in', reason: string | null) {
   const userId = req.user!.id;
   const organizationId = req.user!.organization_id;
   const today = todayIso();
+  console.log('CHECK-IN API HIT', { eventType, userId, organizationId, date: today });
   const location: any = eventType === 'check-in' ? await validateLocation(req, eventType, res) : await officeValidation(req);
   if (!location || (location.valid === false && eventType === 'auto-check-in')) return;
   if ('valid' in location && !location.valid) return res.status(400).json({ message: location.message });
@@ -126,24 +169,52 @@ async function createCheckIn(req: AuthRequest, res: Response, eventType: 'check-
   }
 
   const timeString = nowTime();
-  const user = await one('SELECT shift_start_time FROM users WHERE id = $1', [userId]);
+  const user = await one('SELECT id, name, email, shift_start_time FROM users WHERE id = $1', [userId]);
+  console.log('CHECK-IN USER LOADED', {
+    id: user.id,
+    email: user.email,
+    name: user.name
+  });
   const shiftStart = String(user.shift_start_time || location.office.default_shift_start_time || '09:00').slice(0, 5);
   const diffMinutes = (new Date(`${today}T${timeString}`).getTime() - new Date(`${today}T${shiftStart}`).getTime()) / 60000;
   const isLate = diffMinutes > Number(location.office.late_threshold_minutes);
+  console.log('CHECK-IN LATE CALCULATION', {
+    isLate,
+    checkInTime: timeString,
+    shiftStartTime: shiftStart,
+    lateThresholdMinutes: Number(location.office.late_threshold_minutes)
+  });
+  let emailAlert: EmailAlert = { attempted: false, sent: false, skipped: false, reason: 'Employee was not late' };
+  if (isLate) {
+    console.log('Late check-in detected', {
+      userId,
+      organizationId,
+      date: today,
+      checkInTime: timeString,
+      shiftStartTime: shiftStart,
+      lateThresholdMinutes: Number(location.office.late_threshold_minutes),
+      lateByMinutes: Math.max(0, Math.floor(diffMinutes))
+    });
+  }
 
   await exec(
     `INSERT INTO attendance (organization_id, user_id, date, check_in_time, check_in_lat, check_in_lng, is_late, status, attendance_type)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'on_site')`,
     [organizationId, userId, today, timeString, location.lat, location.lng, isLate, isLate ? 'late' : 'present']
   );
-  const logId = await logAttendance(organizationId, userId, eventType, location.lat, location.lng, location.distance, true, reason);
-  if (isLate) void maybeSendLateEmail(logId, userId, organizationId, today, timeString, shiftStart, Math.max(0, Math.floor(diffMinutes)));
+  const successEventType = isLate ? 'CHECK_IN_SUCCESS_LATE' : eventType;
+  const logId = await logAttendance(organizationId, userId, successEventType, location.lat, location.lng, location.distance, true, reason || (isLate ? 'Late check-in accepted' : null));
+  if (isLate) emailAlert = await maybeSendLateEmail(logId, userId, organizationId, today, timeString, shiftStart, Math.max(0, Math.floor(diffMinutes)));
 
   const record = await one('SELECT * FROM attendance WHERE user_id = $1 AND organization_id = $2 AND date = $3', [userId, organizationId, today]);
-  res.json({ message: eventType === 'auto-check-in' ? 'Auto check-in confirmed' : 'Checked in successfully', distance: Math.round(location.distance), record });
+  const baseMessage = eventType === 'auto-check-in' ? 'Auto check-in confirmed' : 'Checked in successfully';
+  res.json({ message: isLate ? `${baseMessage}, marked late.` : baseMessage, distance: Math.round(location.distance), record, emailAlert });
 }
 
-router.post('/check-in', authenticate, async (req: AuthRequest, res: Response) => createCheckIn(req, res, 'check-in', null));
+router.post('/check-in', authenticate, async (req: AuthRequest, res: Response) => {
+  console.log('CHECK-IN API HIT');
+  return createCheckIn(req, res, 'check-in', null);
+});
 
 router.post('/check-out', authenticate, async (req: AuthRequest, res: Response) => {
   const location = await validateLocation(req, 'check-out', res);
@@ -190,6 +261,7 @@ router.get('/summary', authenticate, async (req: AuthRequest, res: Response) => 
       COALESCE(SUM(CASE WHEN attendance_type = 'work_from_home' THEN 1 ELSE 0 END), 0)::int AS wfh_days,
       COALESCE(SUM(CASE WHEN attendance_type = 'on_duty' THEN 1 ELSE 0 END), 0)::int AS on_duty_days,
       COALESCE(SUM(CASE WHEN attendance_type = 'leave' THEN 1 ELSE 0 END), 0)::int AS leave_days,
+      COALESCE(SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END), 0)::int AS absent_days,
       COALESCE(SUM(CASE WHEN check_in_time IS NOT NULL AND check_out_time IS NULL THEN 1 ELSE 0 END), 0)::int AS missing_checkouts
      FROM attendance WHERE user_id = $1 AND organization_id = $2 AND to_char(date, 'YYYY-MM') = $3`,
     [req.user!.id, req.user!.organization_id, month]

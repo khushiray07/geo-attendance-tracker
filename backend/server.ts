@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { initDb } from './database';
 import authRoutes from './routes/auth';
 import settingsRoutes from './routes/settings';
@@ -9,7 +10,15 @@ import adminRoutes from './routes/admin';
 import organizationRoutes from './routes/organizations';
 import reportRoutes from './routes/reports';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+
+console.log('SMTP configuration loaded', {
+  SMTP_HOST: process.env.SMTP_HOST || '(not set)',
+  SMTP_PORT: process.env.SMTP_PORT || '(not set)',
+  SMTP_USER: process.env.SMTP_USER || '(not set)',
+  SMTP_FROM: process.env.SMTP_FROM || '(not set)',
+  hasPass: Boolean(process.env.SMTP_PASS)
+});
 
 const app = express();
 const PORT = process.env.PORT || 5005;
