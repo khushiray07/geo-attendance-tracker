@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: geo-attendance-tracker-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm run migrate && npm start
+    envVars:
+      - key: PORT
+        value: 5005
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
+      - key: JWT_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SEED_OFFICE_LAT
+        value: "12.8728198074464"
+      - key: SEED_OFFICE_LNG
+        value: "77.6185537861114"
