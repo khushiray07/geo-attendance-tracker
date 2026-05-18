@@ -109,6 +109,21 @@ SEED_OFFICE_LNG=77.6185537861114
 
 If SMTP variables are empty, late check-in email is skipped safely and the app keeps working.
 
+For local development, `DATABASE_URL` must point to a database reachable from your machine, such as the Docker URL above or Render's external database URL. Render internal hostnames like `dpg-...-a` only resolve from services running inside Render.
+
+Frontend production builds use `frontend/.env.production`:
+
+```env
+VITE_API_BASE_URL=/api
+```
+
+Vercel rewrites `/api/*` to `https://geo-attendance-tracker.onrender.com/*`. If you rename the Render backend service, update the rewrite destination in `vercel.json` before redeploying.
+
+On deployment, the root `npm start` runs migration and demo seeding before starting the backend, so these demo credentials are recreated safely:
+
+- `admin@demo.com` / `password123`
+- `employee@demo.com` / `password123`
+
 ## Late Arrival Email Alerts
 
 Late detection is always calculated on the server using:

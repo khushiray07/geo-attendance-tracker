@@ -30,12 +30,29 @@ app.use(express.json());
 async function start() {
   await initDb();
 
+  app.get('/', (_req, res) => {
+    res.json({ ok: true, service: 'geo-attendance-tracker-api' });
+  });
+  app.get('/health', (_req, res) => {
+    res.json({ ok: true });
+  });
+  app.get('/api/health', (_req, res) => {
+    res.json({ ok: true });
+  });
+
   app.use('/api/auth', authRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/attendance', attendanceRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/organizations', organizationRoutes);
   app.use('/api/reports', reportRoutes);
+
+  app.use('/auth', authRoutes);
+  app.use('/settings', settingsRoutes);
+  app.use('/attendance', attendanceRoutes);
+  app.use('/admin', adminRoutes);
+  app.use('/organizations', organizationRoutes);
+  app.use('/reports', reportRoutes);
 
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

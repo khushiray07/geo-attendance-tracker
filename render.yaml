@@ -1,9 +1,10 @@
 services:
   - type: web
-    name: geo-attendance-tracker-api
+    name: geo-attendance-tracker
     runtime: node
     buildCommand: npm install && npm run build
     startCommand: npm start
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 5005

@@ -19,7 +19,22 @@ async function upsertUser(user: {
 }) {
   const passwordHash = await bcrypt.hash('password123', 10);
   const existing = await one('SELECT * FROM users WHERE email = $1', [user.email]);
-  if (existing) return existing;
+  if (existing) {
+    return one(
+      `UPDATE users
+       SET name = $1,
+           password_hash = $2,
+           role = $3,
+           organization_id = $4,
+           department_id = $5,
+           shift_start_time = $6,
+           is_active = TRUE,
+           updated_at = NOW()
+       WHERE email = $7
+       RETURNING *`,
+      [user.name, passwordHash, user.role, user.organizationId, user.departmentId, user.shift, user.email]
+    );
+  }
 
   return one(
     `INSERT INTO users (name, email, password_hash, role, organization_id, department_id, shift_start_time, is_active)

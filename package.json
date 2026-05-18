@@ -1,6 +1,6 @@
 {
   "scripts": {
     "build": "npm --prefix backend install && npm --prefix backend run build",
-    "start": "npm --prefix backend run migrate && npm --prefix backend start"
+    "start": "npm --prefix backend run migrate && npm --prefix backend run seed && npm --prefix backend start"
   }
 }
