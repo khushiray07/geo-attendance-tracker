@@ -39,14 +39,21 @@ CREATE TABLE IF NOT EXISTS office_settings (
   radius_meters INTEGER NOT NULL DEFAULT 100,
   late_threshold_minutes INTEGER NOT NULL DEFAULT 15,
   default_shift_start_time TIME DEFAULT '09:00',
+  shift_checkout_time TIME DEFAULT '23:59',
   office_network_name_label TEXT,
   allowed_ip_ranges TEXT,
+  auto_checkout_enabled BOOLEAN DEFAULT FALSE,
   enable_auto_checkin BOOLEAN DEFAULT FALSE,
   enable_auto_checkout BOOLEAN DEFAULT FALSE,
-  auto_checkout_grace_minutes INTEGER DEFAULT 5,
+  auto_checkout_grace_minutes INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE office_settings ADD COLUMN IF NOT EXISTS shift_checkout_time TIME DEFAULT '23:59';
+ALTER TABLE office_settings ADD COLUMN IF NOT EXISTS auto_checkout_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE office_settings ADD COLUMN IF NOT EXISTS auto_checkout_grace_minutes INTEGER DEFAULT 0;
+ALTER TABLE office_settings ALTER COLUMN auto_checkout_grace_minutes SET DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS attendance (
   id SERIAL PRIMARY KEY,
@@ -88,8 +95,31 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS onsite_breaches (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  attendance_id INTEGER NOT NULL REFERENCES attendance(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ended_at TIMESTAMPTZ,
+  duration_minutes INTEGER DEFAULT 0,
+  start_lat DOUBLE PRECISION,
+  start_lng DOUBLE PRECISION,
+  end_lat DOUBLE PRECISION,
+  end_lng DOUBLE PRECISION,
+  distance_from_office DOUBLE PRECISION,
+  reason TEXT DEFAULT 'Employee moved outside office geofence',
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
 CREATE INDEX IF NOT EXISTS idx_users_department ON users(department_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_org_date ON attendance(organization_id, date);
 CREATE INDEX IF NOT EXISTS idx_attendance_type ON attendance(attendance_type);
 CREATE INDEX IF NOT EXISTS idx_logs_org_time ON attendance_logs(organization_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_onsite_breaches_attendance ON onsite_breaches(attendance_id);
+CREATE INDEX IF NOT EXISTS idx_onsite_breaches_org_date ON onsite_breaches(organization_id, date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_onsite_breaches_one_open ON onsite_breaches(attendance_id) WHERE status = 'open';

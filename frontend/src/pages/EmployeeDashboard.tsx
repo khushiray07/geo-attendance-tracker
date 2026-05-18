@@ -6,6 +6,8 @@ import { Calendar, Clock, Briefcase, AlertTriangle, Fingerprint, MapPin } from '
 import { MapContainer, TileLayer, Circle, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
+const LOCATION_HEARTBEAT_MS = 60000;
+
 // Fix leaflet default icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -25,6 +27,7 @@ export default function EmployeeDashboard() {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [currentPos, setCurrentPos] = useState<[number, number] | null>(null);
   const [autoStatus, setAutoStatus] = useState<any>(null);
+  const [onsiteStatus, setOnsiteStatus] = useState<any>(null);
   const [outsideSince, setOutsideSince] = useState<number | null>(null);
 
   useEffect(() => {
@@ -37,6 +40,13 @@ export default function EmployeeDashboard() {
     const timer = window.setInterval(() => getCurrentLocation(true), 60000);
     return () => window.clearInterval(timer);
   }, [officeSettings, todayRecord]);
+
+  useEffect(() => {
+    if (!todayRecord?.check_in_time || todayRecord?.check_out_time) return;
+    sendLocationHeartbeat();
+    const timer = window.setInterval(sendLocationHeartbeat, LOCATION_HEARTBEAT_MS);
+    return () => window.clearInterval(timer);
+  }, [todayRecord?.check_in_time, todayRecord?.check_out_time]);
 
   const fetchData = async () => {
     try {
@@ -51,11 +61,40 @@ export default function EmployeeDashboard() {
 
       const officeRes = await api.get('/settings/office');
       setOfficeSettings(officeRes.data);
+      const onsiteRes = await api.get('/attendance/onsite-status');
+      setOnsiteStatus(onsiteRes.data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const sendLocationHeartbeat = () => {
+    if (!navigator.geolocation) {
+      setMessage({ type: 'error', text: 'Location access is required to verify onsite status during checked-in session.' });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setCurrentPos([pos.coords.latitude, pos.coords.longitude]);
+        try {
+          const { data } = await api.post('/attendance/location-heartbeat', { lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setOnsiteStatus(data);
+        } catch (err: any) {
+          console.error(err);
+        }
+      },
+      async () => {
+        setMessage({ type: 'error', text: 'Location access is required to verify onsite status during checked-in session.' });
+        try {
+          await api.post('/attendance/location-heartbeat', { permission_denied: true });
+        } catch (err) {
+          console.error(err);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   const getCurrentLocation = (checkAuto = false) => {
@@ -266,6 +305,27 @@ export default function EmployeeDashboard() {
 
         {/* Metrics Column */}
         <div className="space-y-4">
+          <div className={`rounded-2xl border p-5 shadow-sm ${onsiteStatus?.activeBreach ? 'border-amber-200 bg-warning-bg' : 'border-green-100 bg-success-bg'}`}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className={`text-base font-black ${onsiteStatus?.activeBreach ? 'text-warning-text' : 'text-success-text'}`}>
+                {onsiteStatus?.activeBreach ? 'Not Onsite' : 'Inside Office Geofence'}
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-black ${onsiteStatus?.activeBreach ? 'bg-white text-warning-text' : 'bg-white text-success-text'}`}>
+                {onsiteStatus?.activeBreach ? 'Outside' : 'Inside'}
+              </span>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="font-semibold text-gray-700">Distance: {onsiteStatus?.distanceFromOffice !== null && onsiteStatus?.distanceFromOffice !== undefined ? `${onsiteStatus.distanceFromOffice}m from office` : '--'}</div>
+              {onsiteStatus?.activeBreach ? (
+                <p className="text-warning-text">You moved outside office geofence at {new Date(onsiteStatus.activeBreach.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. This interval will be marked as Not Onsite until you return.</p>
+              ) : onsiteStatus?.breachIntervals?.length ? (
+                <p className="text-gray-600">Last Not Onsite interval: {formatInterval(onsiteStatus.breachIntervals[onsiteStatus.breachIntervals.length - 1])}</p>
+              ) : (
+                <p className="text-gray-600">Foreground location monitoring runs every 60 seconds while checked in.</p>
+              )}
+              <div className="font-black text-gray-900">Today total not-onsite time: {onsiteStatus?.todayBreachMinutes || 0} minutes</div>
+            </div>
+          </div>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-brand-light text-brand flex items-center justify-center">
               <Calendar size={24} />
@@ -366,4 +426,11 @@ function punchSuccessMessage(data: any) {
     return 'Checked in successfully • Marked Late • Email failed, attendance saved';
   }
   return 'Checked in successfully • Marked Late';
+}
+
+function formatInterval(interval: any) {
+  const start = interval?.started_at ? new Date(interval.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
+  const end = interval?.ended_at ? new Date(interval.ended_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now';
+  const minutes = interval?.duration_minutes || 0;
+  return `${start} - ${end} (${minutes}m)`;
 }

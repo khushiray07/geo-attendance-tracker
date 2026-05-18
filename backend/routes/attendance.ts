@@ -4,6 +4,8 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { getDistanceInMeters } from '../utils/haversine';
 import { requestIp, matchesAllowedIpRanges } from '../utils/network';
 import { sendLateCheckInEmail } from '../utils/email';
+import { attendanceMonthRecords, attendanceSummary } from '../services/attendanceCalendarService';
+import { activeAttendance, closeOpenBreach, employeeOnsiteStatus, locationPermissionDenied, markOutsideGeofence, skippedHeartbeat } from '../services/geofenceBreachService';
 
 const router = Router();
 
@@ -236,6 +238,7 @@ router.post('/check-out', authenticate, async (req: AuthRequest, res: Response) 
      WHERE id = $5 AND organization_id = $6`,
     [timeString, location.lat, location.lng, workingMinutes, existing.id, req.user!.organization_id]
   );
+  await closeOpenBreach(existing.id, location.lat, location.lng, location.distance, 'Open Not Onsite interval closed during checkout');
   await logAttendance(req.user!.organization_id, req.user!.id, 'check-out', location.lat, location.lng, location.distance, true, null);
   res.json({ message: 'Checked out successfully', distance: Math.round(location.distance), record: await one('SELECT * FROM attendance WHERE id = $1', [existing.id]) });
 });
@@ -247,30 +250,20 @@ router.get('/today', authenticate, async (req: AuthRequest, res: Response) => {
 router.get('/history', authenticate, async (req: AuthRequest, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? String(req.query.month) : null;
   const rows = month
-    ? await query('SELECT * FROM attendance WHERE user_id = $1 AND organization_id = $2 AND to_char(date, $3) = $4 ORDER BY date DESC', [req.user!.id, req.user!.organization_id, 'YYYY-MM', month])
+    ? (await attendanceMonthRecords(req.user!.organization_id, req.user!.id, month)).sort((a, b) => String(b.date).localeCompare(String(a.date)))
     : await query('SELECT * FROM attendance WHERE user_id = $1 AND organization_id = $2 ORDER BY date DESC', [req.user!.id, req.user!.organization_id]);
   res.json(rows);
 });
 
 router.get('/summary', authenticate, async (req: AuthRequest, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? String(req.query.month) : new Date().toISOString().substring(0, 7);
-  res.json(await one(
-    `SELECT COUNT(*)::int AS present_days,
-      COALESCE(SUM(working_minutes), 0)::int AS working_minutes,
-      COALESCE(SUM(CASE WHEN is_late THEN 1 ELSE 0 END), 0)::int AS late_days,
-      COALESCE(SUM(CASE WHEN attendance_type = 'work_from_home' THEN 1 ELSE 0 END), 0)::int AS wfh_days,
-      COALESCE(SUM(CASE WHEN attendance_type = 'on_duty' THEN 1 ELSE 0 END), 0)::int AS on_duty_days,
-      COALESCE(SUM(CASE WHEN attendance_type = 'leave' THEN 1 ELSE 0 END), 0)::int AS leave_days,
-      COALESCE(SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END), 0)::int AS absent_days,
-      COALESCE(SUM(CASE WHEN check_in_time IS NOT NULL AND check_out_time IS NULL THEN 1 ELSE 0 END), 0)::int AS missing_checkouts
-     FROM attendance WHERE user_id = $1 AND organization_id = $2 AND to_char(date, 'YYYY-MM') = $3`,
-    [req.user!.id, req.user!.organization_id, month]
-  ));
+  const records = await attendanceMonthRecords(req.user!.organization_id, req.user!.id, month);
+  res.json(attendanceSummary(records));
 });
 
 router.get('/calendar', authenticate, async (req: AuthRequest, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? String(req.query.month) : new Date().toISOString().substring(0, 7);
-  res.json(await query('SELECT * FROM attendance WHERE user_id = $1 AND organization_id = $2 AND to_char(date, $3) = $4 ORDER BY date ASC', [req.user!.id, req.user!.organization_id, 'YYYY-MM', month]));
+  res.json(await attendanceMonthRecords(req.user!.organization_id, req.user!.id, month));
 });
 
 router.get('/auto-status', authenticate, async (req: AuthRequest, res: Response) => {
@@ -309,8 +302,60 @@ router.post('/auto-check-out', authenticate, async (req: AuthRequest, res: Respo
   const timeString = nowTime();
   const workingMinutes = Math.max(0, Math.floor((new Date(`${today}T${timeString}`).getTime() - new Date(`${today}T${existing.check_in_time}`).getTime()) / 60000));
   await exec('UPDATE attendance SET check_out_time = $1, check_out_lat = $2, check_out_lng = $3, working_minutes = $4, updated_at = NOW() WHERE id = $5', [timeString, validation.lat, validation.lng, workingMinutes, existing.id]);
+  await closeOpenBreach(existing.id, validation.lat, validation.lng, validation.distance, 'Open Not Onsite interval closed during auto checkout');
   await logAttendance(req.user!.organization_id, req.user!.id, 'auto-check-out', validation.lat, validation.lng, validation.distance, true, 'Auto checkout triggered because user moved outside office radius');
   res.json({ message: 'Auto checkout marked', distance: Math.round(validation.distance), record: await one('SELECT * FROM attendance WHERE id = $1', [existing.id]) });
+});
+
+router.post('/location-heartbeat', authenticate, async (req: AuthRequest, res: Response) => {
+  if (req.body?.permission_denied === true) {
+    await locationPermissionDenied(req.user!.organization_id, req.user!.id);
+    const status = await employeeOnsiteStatus(req.user!.organization_id, req.user!.id);
+    return res.status(400).json({
+      ...status,
+      message: 'Location access is required to verify onsite status during checked-in session.'
+    });
+  }
+
+  const lat = Number(req.body?.lat);
+  const lng = Number(req.body?.lng);
+  if (!isValidLatLng(lat, lng)) return res.status(400).json({ message: 'Valid latitude and longitude are required' });
+
+  const attendance = await activeAttendance(req.user!.organization_id, req.user!.id);
+  if (!attendance) {
+    await skippedHeartbeat(req.user!.organization_id, req.user!.id);
+    return res.json({
+      insideGeofence: true,
+      distanceFromOffice: null,
+      activeBreach: null,
+      breachIntervals: [],
+      todayBreachMinutes: 0,
+      message: 'No active checked-in attendance session'
+    });
+  }
+
+  const office = await getOffice(req.user!.organization_id);
+  if (!office) return res.status(400).json({ message: 'Office location is not configured yet' });
+  const distance = getDistanceInMeters(lat, lng, Number(office.latitude), Number(office.longitude));
+  const insideGeofence = distance <= Number(office.radius_meters);
+
+  if (insideGeofence) {
+    await closeOpenBreach(attendance.id, lat, lng, distance);
+  } else {
+    await markOutsideGeofence(attendance, lat, lng, distance);
+  }
+
+  const status = await employeeOnsiteStatus(req.user!.organization_id, req.user!.id);
+  res.json({
+    ...status,
+    insideGeofence,
+    distanceFromOffice: Math.round(distance),
+    message: insideGeofence ? 'Inside office geofence.' : 'You are currently outside the configured office radius. This interval will be marked as Not Onsite until you return.'
+  });
+});
+
+router.get('/onsite-status', authenticate, async (req: AuthRequest, res: Response) => {
+  res.json(await employeeOnsiteStatus(req.user!.organization_id, req.user!.id));
 });
 
 export default router;

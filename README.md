@@ -21,6 +21,8 @@ Hackathon-ready employee attendance system with browser geolocation, server-side
 - Check-out without check-in rejection
 - Server-side working minutes calculation
 - Server-side late arrival calculation
+- Configurable missed punch-out auto checkout with audit logs
+- Foreground geofence heartbeat tracking for Not Onsite intervals while employees are checked in
 - Departments: Engineering, HR, Sales, Operations
 - WFH, On Duty, Leave, and on-site admin exceptions
 - Audit logs for punch attempts, rejections, admin exceptions, and auto checkout
@@ -117,6 +119,24 @@ check_in_time > shift_start_time + late_threshold_minutes
 
 When an employee is late, the attendance record is saved with `is_late = true`, a late check-in audit log is created, and the backend attempts to send an email only when all SMTP variables are present. Missing or failed email configuration never blocks check-in.
 
+## Missed Punch-out Auto Checkout
+
+If an on-site employee checks in but forgets to punch out, the backend can close the record with the configured `office_settings.shift_checkout_time`, calculate working minutes server-side, mark the status as `AUTO_CHECKOUT`, and write an `AUTO_CHECKOUT` audit log.
+
+The server checks every 60 seconds using Asia/Kolkata local date/time. The default checkout time is `23:59`, and admins can set values such as `13:58` from Admin -> Office Settings for testing. For demos, admins can trigger the same logic from Admin Dashboard or manually:
+
+```http
+POST /api/admin/attendance/auto-checkout
+```
+
+WFH, On Duty, Leave, and already checked-out records are not auto-closed.
+
+## Not Onsite Tracking
+
+While an employee is checked in and the web app is open, the employee dashboard sends a location heartbeat about once per minute. The backend uses the configured office geofence and Haversine distance check to create a Not Onsite interval when the employee moves outside the radius, then closes that interval when they return.
+
+This is foreground tracking for browser demo reliability; browsers cannot guarantee continuous background location monitoring.
+
 ## Demo Credentials
 
 - Admin: `admin@demo.com` / `password123`
@@ -140,6 +160,7 @@ When an employee is late, the attendance record is saved with `is_late = true`, 
 9. Login as admin and view dashboard updates.
 10. Export monthly report CSV.
 11. Open Audit Logs to show accepted and rejected attempts.
+12. Use the admin auto-checkout endpoint to demonstrate missed punch-out closure and audit logging.
 
 ## Screenshots
 

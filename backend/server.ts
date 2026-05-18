@@ -9,6 +9,7 @@ import attendanceRoutes from './routes/attendance';
 import adminRoutes from './routes/admin';
 import organizationRoutes from './routes/organizations';
 import reportRoutes from './routes/reports';
+import { scheduleDailyAutoCheckout } from './services/autoCheckoutService';
 
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
@@ -39,6 +40,7 @@ async function start() {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
+  scheduleDailyAutoCheckout();
 }
 
 start().catch((err) => {

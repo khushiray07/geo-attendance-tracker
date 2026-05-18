@@ -2,6 +2,9 @@ import { Router, Response } from 'express';
 import bcrypt from 'bcrypt';
 import { exec, one, query } from '../database';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
+import { attendanceMonthRecords } from '../services/attendanceCalendarService';
+import { autoCheckoutMissedPunches } from '../services/autoCheckoutService';
+import { adminBreachRows } from '../services/geofenceBreachService';
 
 const router = Router();
 router.use(authenticate, requireAdmin);
@@ -11,22 +14,31 @@ function todayIso() {
 }
 
 function csv(rows: any[]) {
-  const headers = ['Date', 'Employee', 'Department', 'Email', 'Attendance Type', 'Check In', 'Check Out', 'Working Minutes', 'Status', 'Late', 'Admin Note'];
+  const headers = ['Date', 'Employee', 'Department', 'Email', 'Attendance Type', 'Check In', 'Check Out', 'Working Minutes', 'Status', 'Late', 'Not Onsite Minutes', 'Geofence Breach Count', 'Admin Note'];
   const lines = rows.map((row) => [
     row.date, row.name, row.department_name || '', row.email, row.attendance_type || 'on_site',
     row.check_in_time || '', row.check_out_time || '', row.working_minutes || 0,
-    row.status || '', row.is_late ? 'Yes' : 'No', row.admin_note || ''
+    row.status || '', row.is_late ? 'Yes' : 'No', row.not_onsite_minutes || 0, row.geofence_breach_count || 0, row.admin_note || ''
   ].map((value) => `"${String(value).replace(/"/g, '""')}"`).join(','));
   return [headers.join(','), ...lines].join('\n');
 }
 
-async function reportRows(organizationId: number, month: string, employeeId = 'all', status = 'all', departmentId = 'all') {
+async function reportRows(organizationId: number, month: string, employeeId = 'all', status = 'all', departmentId = 'all', search = '') {
   const params: any[] = [organizationId, month];
   let sql = `
-    SELECT a.*, u.name, u.email, d.name AS department_name
+    SELECT a.*, u.name, u.email, d.name AS department_name,
+           COALESCE(b.not_onsite_minutes, 0)::int AS not_onsite_minutes,
+           COALESCE(b.geofence_breach_count, 0)::int AS geofence_breach_count
     FROM attendance a
     JOIN users u ON a.user_id = u.id
     LEFT JOIN departments d ON d.id = u.department_id
+    LEFT JOIN (
+      SELECT attendance_id,
+             COALESCE(SUM(CASE WHEN status = 'open' THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (NOW() - started_at)) / 60))::int ELSE COALESCE(duration_minutes, 0) END), 0)::int AS not_onsite_minutes,
+             COUNT(*)::int AS geofence_breach_count
+      FROM onsite_breaches
+      GROUP BY attendance_id
+    ) b ON b.attendance_id = a.id
     WHERE a.organization_id = $1 AND to_char(a.date, 'YYYY-MM') = $2
   `;
   if (employeeId !== 'all') {
@@ -39,12 +51,17 @@ async function reportRows(organizationId: number, month: string, employeeId = 'a
   }
   if (status !== 'all') {
     if (status === 'late') sql += ' AND a.is_late = TRUE';
-    else if (status === 'missing_checkout') sql += ' AND a.check_in_time IS NOT NULL AND a.check_out_time IS NULL';
+    else if (status === 'missing_checkout') sql += " AND ((a.check_in_time IS NOT NULL AND a.check_out_time IS NULL) OR LOWER(a.status) IN ('missing_checkout_auto_closed','auto_checkout'))";
     else if (status === 'present') sql += ' AND a.check_in_time IS NOT NULL AND a.is_late = FALSE';
     else if (['work_from_home', 'on_duty', 'leave', 'on_site'].includes(status)) {
       params.push(status);
       sql += ` AND a.attendance_type = $${params.length}`;
     }
+  }
+  const normalizedSearch = search.trim().toLowerCase();
+  if (normalizedSearch) {
+    params.push(`%${normalizedSearch}%`);
+    sql += ` AND (LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(COALESCE(d.name, '')) LIKE $${params.length})`;
   }
   sql += ' ORDER BY a.date DESC, a.check_in_time DESC NULLS LAST';
   return query(sql, params);
@@ -199,17 +216,30 @@ router.get('/attendance/today', async (req: AuthRequest, res: Response) => {
   )));
 });
 
+router.get('/attendance/geofence-breaches', async (req: AuthRequest, res: Response) => {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? String(req.query.date) : todayIso();
+  res.json(await adminBreachRows(req.user!.organization_id, date));
+});
+
 router.get('/attendance/report', async (req: AuthRequest, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? String(req.query.month) : new Date().toISOString().substring(0, 7);
-  res.json(await reportRows(req.user!.organization_id, month, String(req.query.employee_id || 'all'), String(req.query.status || 'all'), String(req.query.department_id || 'all')));
+  res.json(await reportRows(req.user!.organization_id, month, String(req.query.employee_id || 'all'), String(req.query.status || 'all'), String(req.query.department_id || 'all'), String(req.query.search || '')));
 });
 
 router.get('/attendance/report/export', async (req: AuthRequest, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? String(req.query.month) : new Date().toISOString().substring(0, 7);
-  const rows = await reportRows(req.user!.organization_id, month, String(req.query.employee_id || 'all'), String(req.query.status || 'all'), String(req.query.department_id || 'all'));
+  const rows = await reportRows(req.user!.organization_id, month, String(req.query.employee_id || 'all'), String(req.query.status || 'all'), String(req.query.department_id || 'all'), String(req.query.search || ''));
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="attendance_report_${month}.csv"`);
   res.send(csv(rows));
+});
+
+router.post('/attendance/auto-checkout', async (req: AuthRequest, res: Response) => {
+  const result = await autoCheckoutMissedPunches(req.user!.organization_id, req.user!.id);
+  res.json({
+    message: `Auto checkout completed for ${result.closedCount} missed punch-out record(s).`,
+    ...result
+  });
 });
 
 router.post('/attendance/exception', async (req: AuthRequest, res: Response) => {
@@ -235,13 +265,15 @@ router.post('/attendance/exception', async (req: AuthRequest, res: Response) => 
 
 router.get('/attendance/employee/:employeeId/calendar', async (req: AuthRequest, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? String(req.query.month) : new Date().toISOString().substring(0, 7);
-  res.json(await query('SELECT * FROM attendance WHERE organization_id = $1 AND user_id = $2 AND to_char(date, $3) = $4 ORDER BY date ASC', [req.user!.organization_id, Number(req.params.employeeId), 'YYYY-MM', month]));
+  const employee = await one('SELECT id FROM users WHERE id = $1 AND organization_id = $2 AND role = $3', [Number(req.params.employeeId), req.user!.organization_id, 'employee']);
+  if (!employee) return res.status(404).json({ message: 'Employee not found' });
+  res.json(await attendanceMonthRecords(req.user!.organization_id, Number(req.params.employeeId), month));
 });
 
 router.get('/reports/employee/:employeeId', async (req: AuthRequest, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? String(req.query.month) : new Date().toISOString().substring(0, 7);
   const employeeId = Number(req.params.employeeId);
-  const records = await reportRows(req.user!.organization_id, month, String(employeeId), 'all');
+  const records = await reportRows(req.user!.organization_id, month, String(employeeId), 'all', 'all', String(req.query.search || ''));
   const summary = await one(
     `SELECT COUNT(*)::int AS total_days,
       COALESCE(SUM(CASE WHEN check_in_time IS NOT NULL OR attendance_type IN ('work_from_home','on_duty') THEN 1 ELSE 0 END), 0)::int AS present_days,
@@ -249,6 +281,8 @@ router.get('/reports/employee/:employeeId', async (req: AuthRequest, res: Respon
       COALESCE(SUM(CASE WHEN attendance_type = 'work_from_home' THEN 1 ELSE 0 END), 0)::int AS wfh_days,
       COALESCE(SUM(CASE WHEN attendance_type = 'on_duty' THEN 1 ELSE 0 END), 0)::int AS on_duty_days,
       COALESCE(SUM(CASE WHEN attendance_type = 'leave' THEN 1 ELSE 0 END), 0)::int AS leave_days,
+      COALESCE((SELECT SUM(CASE WHEN b.status = 'open' THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (NOW() - b.started_at)) / 60))::int ELSE COALESCE(b.duration_minutes, 0) END) FROM onsite_breaches b JOIN attendance ba ON ba.id = b.attendance_id WHERE ba.organization_id = $1 AND ba.user_id = $2 AND to_char(ba.date, 'YYYY-MM') = $3), 0)::int AS not_onsite_minutes,
+      COALESCE((SELECT COUNT(*) FROM onsite_breaches b JOIN attendance ba ON ba.id = b.attendance_id WHERE ba.organization_id = $1 AND ba.user_id = $2 AND to_char(ba.date, 'YYYY-MM') = $3), 0)::int AS geofence_breach_count,
       COALESCE(SUM(working_minutes), 0)::int AS working_minutes
      FROM attendance WHERE organization_id = $1 AND user_id = $2 AND to_char(date, 'YYYY-MM') = $3`,
     [req.user!.organization_id, employeeId, month]
@@ -258,7 +292,7 @@ router.get('/reports/employee/:employeeId', async (req: AuthRequest, res: Respon
 
 router.get('/reports/employee/:employeeId/export', async (req: AuthRequest, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? String(req.query.month) : new Date().toISOString().substring(0, 7);
-  const rows = await reportRows(req.user!.organization_id, month, String(Number(req.params.employeeId)), 'all');
+  const rows = await reportRows(req.user!.organization_id, month, String(Number(req.params.employeeId)), 'all', 'all', String(req.query.search || ''));
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="employee_${req.params.employeeId}_attendance_${month}.csv"`);
   res.send(csv(rows));

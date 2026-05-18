@@ -63,10 +63,10 @@ async function seed() {
   await exec(
     `INSERT INTO office_settings (
       organization_id, office_name, latitude, longitude, radius_meters, late_threshold_minutes,
-      default_shift_start_time, office_network_name_label, allowed_ip_ranges,
-      enable_auto_checkin, enable_auto_checkout, auto_checkout_grace_minutes
+      default_shift_start_time, shift_checkout_time, office_network_name_label, allowed_ip_ranges,
+      auto_checkout_enabled, enable_auto_checkin, enable_auto_checkout, auto_checkout_grace_minutes
     )
-    VALUES ($1, 'Main Office', $2, $3, 150, 15, '09:00', 'Main Office Network', '', TRUE, TRUE, 5)
+    VALUES ($1, 'Main Office', $2, $3, 150, 15, '09:00', '23:59', 'Main Office Network', '', TRUE, TRUE, TRUE, 5)
     ON CONFLICT (organization_id) DO UPDATE SET
       office_name = EXCLUDED.office_name,
       latitude = EXCLUDED.latitude,
@@ -74,6 +74,8 @@ async function seed() {
       radius_meters = EXCLUDED.radius_meters,
       late_threshold_minutes = EXCLUDED.late_threshold_minutes,
       default_shift_start_time = EXCLUDED.default_shift_start_time,
+      shift_checkout_time = EXCLUDED.shift_checkout_time,
+      auto_checkout_enabled = EXCLUDED.auto_checkout_enabled,
       updated_at = NOW()`,
     [org.id, office.latitude, office.longitude]
   );

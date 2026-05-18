@@ -11,6 +11,7 @@ export default function OfficeSettings() {
     radius_meters: 100,
     late_threshold_minutes: 15,
     default_shift_start_time: '09:00',
+    shift_checkout_time: '23:59',
     office_network_name_label: '',
     allowed_ip_ranges: '',
     enable_auto_checkin: false,
@@ -28,7 +29,12 @@ export default function OfficeSettings() {
   const fetchSettings = async () => {
     try {
       const { data } = await api.get('/settings/office');
-      setSettings({ ...settings, ...data });
+      setSettings({
+        ...settings,
+        ...data,
+        default_shift_start_time: String(data.default_shift_start_time || settings.default_shift_start_time).slice(0, 5),
+        shift_checkout_time: String(data.shift_checkout_time || settings.shift_checkout_time).slice(0, 5)
+      });
     } catch (err) {
       console.error(err);
     } finally {
@@ -154,6 +160,18 @@ export default function OfficeSettings() {
             </div>
 
             <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Auto Checkout Time / Shift Checkout Time</label>
+              <p className="text-xs text-gray-500 mb-3">Employees still checked in after this local time are closed by the backend scheduler. Example: 23:59, or 13:58 for testing.</p>
+              <input
+                type="time"
+                value={settings.shift_checkout_time}
+                onChange={(e) => setSettings({...settings, shift_checkout_time: e.target.value})}
+                className="w-full px-4 py-3 bg-[#F4F7FE] border-transparent rounded-xl outline-none focus:ring-2 focus:ring-brand-light focus:bg-white focus:border-brand font-medium text-gray-900 transition"
+                required
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Late Threshold (Minutes)</label>
               <p className="text-xs text-gray-500 mb-3">Minutes after shift start time before an employee is marked as late.</p>
               <input
@@ -195,7 +213,7 @@ export default function OfficeSettings() {
                 </label>
                 <label className="flex items-center gap-3 rounded-xl bg-[#F4F7FE] p-4 font-bold text-gray-700">
                   <input type="checkbox" checked={settings.enable_auto_checkout} onChange={(e) => setSettings({...settings, enable_auto_checkout: e.target.checked})} className="h-5 w-5" />
-                  Enable auto checkout
+                  Enable geofence auto checkout
                 </label>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Checkout Grace Minutes</label>

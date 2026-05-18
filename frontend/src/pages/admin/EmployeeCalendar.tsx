@@ -53,6 +53,7 @@ export default function EmployeeCalendar() {
               >
                 <div className="font-black text-gray-900">{day.label}</div>
                 {day.inMonth && badge && <div className={`mt-3 inline-flex rounded-full px-2 py-1 text-[11px] font-black ${badge.className}`}>{badge.text}</div>}
+                {day.inMonth && record?.not_onsite_minutes > 0 && <div className="mt-1 inline-flex rounded-full bg-warning-bg px-2 py-1 text-[11px] font-black text-warning-text">Away {record.not_onsite_minutes}m</div>}
               </button>
             );
           })}
@@ -68,6 +69,7 @@ export default function EmployeeCalendar() {
               <Detail label="Check-in" value={selectedRecord.check_in_time?.substring(0, 5) || '--'} />
               <Detail label="Check-out" value={selectedRecord.check_out_time?.substring(0, 5) || '--'} />
               <Detail label="Hours" value={selectedRecord.working_minutes ? `${Math.floor(selectedRecord.working_minutes / 60)}h ${selectedRecord.working_minutes % 60}m` : '--'} />
+              <Detail label="Not onsite" value={selectedRecord.not_onsite_minutes ? `${selectedRecord.not_onsite_minutes}m across ${selectedRecord.geofence_breach_count || 0} interval(s)` : '--'} />
               <Detail label="Note" value={selectedRecord.admin_note || '--'} />
             </div>
             <button onClick={() => setSelectedRecord(null)} className="mt-6 w-full rounded-lg bg-brand py-3 font-bold text-white">Close</button>
@@ -93,10 +95,13 @@ function calendarDays(month: string) {
 
 function statusLabel(record: any) {
   if (!record) return null;
+  const status = String(record.status || '').toLowerCase();
   if (record.attendance_type === 'work_from_home') return { text: 'WFH', className: 'bg-blue-50 text-blue-700' };
   if (record.attendance_type === 'on_duty') return { text: 'On Duty', className: 'bg-purple-50 text-purple-700' };
   if (record.attendance_type === 'leave') return { text: 'Leave', className: 'bg-gray-200 text-gray-700' };
-  if (record.status === 'absent') return { text: 'Absent', className: 'bg-gray-100 text-gray-600' };
+  if (status === 'absent') return { text: 'Absent', className: 'bg-gray-100 text-gray-600' };
+  if (status === 'pending') return { text: 'Pending', className: 'bg-[#F4F7FE] text-gray-600' };
+  if (status === 'missing_checkout_auto_closed' || status === 'auto_checkout') return { text: 'Auto Checkout', className: 'bg-danger-bg text-danger-text' };
   if (record.check_in_time && !record.check_out_time) return { text: 'Missing Checkout', className: 'bg-danger-bg text-danger-text' };
   if (record.is_late) return { text: 'Late', className: 'bg-warning-bg text-warning-text' };
   return { text: 'Present', className: 'bg-success-bg text-success-text' };
