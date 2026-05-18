@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.log
+database.sqlite
+backend/database.sqlite
+frontend/dist/
+backend/node_modules/
+frontend/node_modules/
