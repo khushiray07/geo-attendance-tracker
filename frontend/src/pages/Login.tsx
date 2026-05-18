@@ -35,8 +35,8 @@ export default function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8">
-      <div className="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-[1fr_440px]">
+    <main className="min-h-screen bg-background px-4 py-6 sm:py-8">
+      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1fr_440px]">
         <section className="hidden lg:block">
           <Link to="/" className="mb-10 flex items-center gap-2 font-bold text-gray-950">
             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand text-white"><MapPin size={22} /></span>
@@ -48,12 +48,12 @@ export default function Login() {
           </p>
         </section>
 
-        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-xl shadow-gray-200/50 sm:p-8">
+        <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xl shadow-gray-200/50 sm:p-8">
           <Link to="/" className="mb-8 flex items-center gap-2 font-bold text-gray-950 lg:hidden">
             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand text-white"><MapPin size={22} /></span>
             Geo Attendance Tracker
           </Link>
-          <h2 className="text-3xl font-black text-gray-950">Login</h2>
+          <h2 className="text-2xl font-black text-gray-950 sm:text-3xl">Login</h2>
           <p className="mt-2 text-gray-600">Use your organization account to continue.</p>
 
           {error && <div className="mt-5 rounded-lg border border-red-200 bg-danger-bg px-4 py-3 text-sm font-medium text-danger-text">{error}</div>}
@@ -73,7 +73,7 @@ export default function Login() {
                 <input className="w-full rounded-lg border border-transparent bg-[#F4F7FE] py-3 pl-10 pr-3 outline-none focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand-light" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" />
               </span>
             </label>
-            <button disabled={loading} className="w-full rounded-lg bg-brand px-4 py-3.5 font-bold text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50">
+            <button disabled={loading} className="min-h-12 w-full rounded-lg bg-brand px-4 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50">
               {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
@@ -100,7 +100,7 @@ export default function Login() {
 
 function DemoButton({ label, email, onClick }: { label: string; email: string; onClick: (email: string) => void }) {
   return (
-    <button onClick={() => onClick(email)} className="flex items-center justify-between rounded-lg bg-white px-3 py-3 text-left text-sm hover:ring-2 hover:ring-brand-light">
+    <button onClick={() => onClick(email)} className="flex min-h-12 items-center justify-between gap-3 rounded-lg bg-white px-3 py-3 text-left text-sm hover:ring-2 hover:ring-brand-light">
       <span>
         <span className="block font-bold text-gray-900">{label}</span>
         <span className="text-xs text-gray-500">{email} / password123</span>

@@ -53,6 +53,34 @@ export default function Reports() {
     window.URL.revokeObjectURL(url);
   };
 
+  const statusBadge = (record: any) => {
+    const status = record.status || (record.is_late ? 'late' : 'present');
+    if (record.attendance_type === 'work_from_home' || status === 'work_from_home') {
+      return 'bg-blue-50 text-blue-700';
+    }
+    if (record.attendance_type === 'on_duty' || status === 'on_duty') {
+      return 'bg-purple-50 text-purple-700';
+    }
+    if (record.attendance_type === 'leave' || status === 'leave') {
+      return 'bg-gray-100 text-gray-700';
+    }
+    if (record.is_late || status === 'late') {
+      return 'bg-warning-bg text-warning-text';
+    }
+    if (status === 'absent') {
+      return 'bg-danger-bg text-danger-text';
+    }
+    return 'bg-success-bg text-success-text';
+  };
+
+  const statusText = (record: any) => {
+    if (record.attendance_type === 'work_from_home') return 'WFH';
+    if (record.attendance_type === 'on_duty') return 'On Duty';
+    if (record.attendance_type === 'leave') return 'Leave';
+    if (record.status === 'absent') return 'Absent';
+    return record.is_late ? 'Late' : 'Present';
+  };
+
   return (
     <DashboardLayout title="Reports">
       <div className="mb-8 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
@@ -117,7 +145,7 @@ export default function Reports() {
       )}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left">
             <thead className="bg-[#F4F7FE] text-xs uppercase tracking-wider text-gray-500">
               <tr><th className="px-5 py-3">Date</th><th className="px-5 py-3">Employee</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Check In</th><th className="px-5 py-3">Check Out</th><th className="px-5 py-3">Hours</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Note</th></tr>
@@ -131,12 +159,53 @@ export default function Reports() {
                   <td className="px-5 py-4 text-sm">{record.check_in_time?.substring(0, 5) || '--'}</td>
                   <td className="px-5 py-4 text-sm">{record.check_out_time?.substring(0, 5) || '--'}</td>
                   <td className="px-5 py-4 text-sm">{record.working_minutes ? `${Math.floor(record.working_minutes / 60)}h ${record.working_minutes % 60}m` : '--'}</td>
-                  <td className="px-5 py-4"><span className={`rounded-full px-3 py-1 text-xs font-bold ${record.is_late ? 'bg-warning-bg text-warning-text' : 'bg-success-bg text-success-text'}`}>{record.is_late ? 'Late' : 'Present'}</span></td>
+                  <td className="px-5 py-4"><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge(record)}`}>{statusText(record)}</span></td>
                   <td className="px-5 py-4 text-sm text-gray-500">{record.admin_note || '--'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="divide-y divide-gray-100 md:hidden">
+          {loading ? (
+            <div className="p-6 text-center text-sm text-gray-500">Loading report...</div>
+          ) : records.length === 0 ? (
+            <div className="p-6 text-center text-sm text-gray-500">No records match these filters.</div>
+          ) : records.map((record) => (
+            <article key={record.id} className="p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-base font-black text-gray-900">{record.name}</div>
+                  <div className="mt-1 text-xs text-gray-500">{record.date} • {record.department_name || 'No department'}</div>
+                </div>
+                <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${statusBadge(record)}`}>{statusText(record)}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-gray-400">Type</div>
+                  <div className="mt-1 font-semibold capitalize text-gray-800">{String(record.attendance_type || 'on_site').replaceAll('_', ' ')}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-gray-400">Hours</div>
+                  <div className="mt-1 font-semibold text-gray-800">{record.working_minutes ? `${Math.floor(record.working_minutes / 60)}h ${record.working_minutes % 60}m` : '--'}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-gray-400">Check In</div>
+                  <div className="mt-1 font-semibold text-gray-800">{record.check_in_time?.substring(0, 5) || '--'}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-gray-400">Check Out</div>
+                  <div className="mt-1 font-semibold text-gray-800">{record.check_out_time?.substring(0, 5) || '--'}</div>
+                </div>
+              </div>
+              {(record.admin_note || record.email) && (
+                <div className="mt-3 rounded-lg bg-[#F4F7FE] px-3 py-2 text-xs text-gray-600">
+                  {record.admin_note || record.email}
+                </div>
+              )}
+            </article>
+          ))}
         </div>
       </div>
     </DashboardLayout>

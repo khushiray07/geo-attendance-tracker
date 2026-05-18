@@ -9,6 +9,7 @@ export default function AttendanceHistory() {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(new Date().toISOString().substring(0, 7));
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+  const explicitAbsences = records.filter((record) => record.status === 'absent').length;
 
   useEffect(() => {
     fetchHistory();
@@ -29,7 +30,16 @@ export default function AttendanceHistory() {
   };
 
   const getStatusPill = (record: any) => {
-    if (!record.check_in_time && !record.check_out_time) {
+    if (record.attendance_type === 'work_from_home') {
+      return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700"><span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span> WFH</span>;
+    }
+    if (record.attendance_type === 'on_duty') {
+      return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700"><span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span> On Duty</span>;
+    }
+    if (record.attendance_type === 'leave') {
+      return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700"><span className="w-1.5 h-1.5 rounded-full bg-gray-500"></span> Leave</span>;
+    }
+    if (record.status === 'absent') {
       return <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600"><span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Absent</span>;
     }
     if (record.check_in_time && !record.check_out_time) {
@@ -74,19 +84,19 @@ export default function AttendanceHistory() {
         </div>
         <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
           <div className="text-xs font-bold text-gray-500 tracking-wider mb-2">Absences</div>
-          <div className="text-3xl font-bold text-danger-text">{summary.leave_days || 0}</div>
+          <div className="text-3xl font-bold text-danger-text">{summary.absent_days ?? explicitAbsences}</div>
         </div>
       </div>
 
-      <div className="mb-8 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <div className="mb-8 rounded-2xl border border-gray-100 bg-white p-3 sm:p-4 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-black text-gray-950">Monthly Calendar</h2>
           <div className="text-sm font-bold text-gray-500">{month}</div>
         </div>
-        <div className="grid grid-cols-7 gap-2 text-center text-xs font-black uppercase tracking-wider text-gray-400">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-[10px] sm:text-xs font-black uppercase tracking-wider text-gray-400">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <div key={day}>{day}</div>)}
         </div>
-        <div className="mt-2 grid grid-cols-7 gap-2">
+        <div className="mt-2 grid grid-cols-7 gap-1 sm:gap-2">
           {calendarDays(month).map((day) => {
             const record = records.find((item) => item.date === day.date);
             const badge = statusLabel(record);
@@ -95,11 +105,11 @@ export default function AttendanceHistory() {
                 key={day.key}
                 disabled={!day.inMonth}
                 onClick={() => record && setSelectedRecord(record)}
-                className={`min-h-20 rounded-xl border p-2 text-left transition ${day.inMonth ? 'border-gray-100 bg-[#FAFBFF] hover:border-brand-light' : 'border-transparent bg-transparent'} ${record ? 'cursor-pointer' : ''}`}
+                className={`min-h-14 sm:min-h-20 rounded-lg sm:rounded-xl border p-1.5 sm:p-2 text-left transition ${day.inMonth ? 'border-gray-100 bg-[#FAFBFF] hover:border-brand-light' : 'border-transparent bg-transparent'} ${record ? 'cursor-pointer' : ''}`}
               >
-                <div className="font-black text-gray-900">{day.label}</div>
-                {day.inMonth && (
-                  <div className={`mt-3 inline-flex rounded-full px-2 py-1 text-[11px] font-black ${badge.className}`}>{badge.text}</div>
+                <div className="text-xs sm:text-base font-black text-gray-900">{day.label}</div>
+                {day.inMonth && badge && (
+                  <div className={`mt-1 sm:mt-3 inline-flex max-w-full rounded-full px-1.5 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-[11px] font-black ${badge.className}`}>{badge.shortText || badge.text}</div>
                 )}
               </button>
             );
@@ -199,12 +209,14 @@ function calendarDays(month: string) {
 }
 
 function statusLabel(record: any) {
-  if (!record) return { text: 'Absent', className: 'bg-gray-100 text-gray-500' };
-  if (record.attendance_type === 'work_from_home') return { text: 'WFH', className: 'bg-blue-50 text-blue-700' };
-  if (record.attendance_type === 'on_duty') return { text: 'On Duty', className: 'bg-purple-50 text-purple-700' };
-  if (record.attendance_type === 'leave') return { text: 'Leave', className: 'bg-gray-200 text-gray-700' };
-  if (record.is_late) return { text: 'Late', className: 'bg-warning-bg text-warning-text' };
-  return { text: 'Present', className: 'bg-success-bg text-success-text' };
+  if (!record) return null;
+  if (record.attendance_type === 'work_from_home') return { text: 'WFH', shortText: 'WFH', className: 'bg-blue-50 text-blue-700' };
+  if (record.attendance_type === 'on_duty') return { text: 'On Duty', shortText: 'Duty', className: 'bg-purple-50 text-purple-700' };
+  if (record.attendance_type === 'leave') return { text: 'Leave', shortText: 'Leave', className: 'bg-gray-200 text-gray-700' };
+  if (record.status === 'absent') return { text: 'Absent', shortText: 'Abs', className: 'bg-gray-100 text-gray-600' };
+  if (record.check_in_time && !record.check_out_time) return { text: 'Missing Checkout', shortText: 'Open', className: 'bg-danger-bg text-danger-text' };
+  if (record.is_late) return { text: 'Late', shortText: 'Late', className: 'bg-warning-bg text-warning-text' };
+  return { text: 'Present', shortText: 'In', className: 'bg-success-bg text-success-text' };
 }
 
 function Detail({ label, value }: { label: string; value: string }) {

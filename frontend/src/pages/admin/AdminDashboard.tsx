@@ -135,25 +135,27 @@ export default function AdminDashboard() {
           />
         </div>
         
-        <div className="flex bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
-          {['ALL', 'PRESENT', 'LATE', 'WFH', 'ON_DUTY', 'ABSENT'].map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
-                filter === f 
-                  ? 'bg-brand text-white' 
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              {f}
-            </button>
-          ))}
+        <div className="overflow-x-auto pb-1 md:pb-0">
+          <div className="flex min-w-max bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+            {['ALL', 'PRESENT', 'LATE', 'WFH', 'ON_DUTY', 'ABSENT'].map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`min-h-10 px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+                  filter === f 
+                    ? 'bg-brand text-white' 
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#F4F7FE] border-b border-gray-100">
@@ -212,6 +214,49 @@ export default function AdminDashboard() {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="divide-y divide-gray-100 md:hidden">
+          {loading ? (
+            <div className="p-6 text-center text-sm text-gray-500">Loading records...</div>
+          ) : filteredData.length === 0 ? (
+            <div className="p-6 text-center text-sm text-gray-500">No records found.</div>
+          ) : (
+            filteredData.map(record => (
+              <article key={record.user_id} className="p-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-200 font-bold text-gray-600 shadow-sm">
+                      {record.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-base font-black text-gray-900">{record.name}</div>
+                      <div className="truncate text-xs text-gray-500">{record.email}</div>
+                    </div>
+                  </div>
+                  <div className="shrink-0">{getStatusPill(record)}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-gray-400">Check-in</div>
+                    <div className="mt-1 font-semibold text-gray-800">{record.check_in_time ? record.check_in_time.substring(0,5) : '--'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-gray-400">Check-out</div>
+                    <div className="mt-1 font-semibold text-gray-800">{record.check_out_time ? record.check_out_time.substring(0,5) : '--'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-gray-400">Department</div>
+                    <div className="mt-1 font-semibold text-gray-800">{record.department_name || '--'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-gray-400">Hours</div>
+                    <div className="mt-1 font-semibold text-gray-800">{record.working_minutes ? `${Math.floor(record.working_minutes / 60)}h ${record.working_minutes % 60}m` : '--'}</div>
+                  </div>
+                </div>
+              </article>
+            ))
+          )}
         </div>
       </div>
     </DashboardLayout>

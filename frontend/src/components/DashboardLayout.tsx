@@ -96,7 +96,7 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Top Header */}
-        <header className="bg-background border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+        <header className="bg-background border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-4">
             <button 
               className="lg:hidden text-gray-500 hover:text-gray-700"
@@ -126,7 +126,7 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
         </header>
 
         {/* Scrollable Content Area */}
-        <main className="flex-1 overflow-auto p-4 md:p-8 bg-background">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-8 bg-background">
           {children}
         </main>
       </div>

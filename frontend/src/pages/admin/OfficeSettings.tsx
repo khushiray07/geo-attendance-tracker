@@ -67,8 +67,8 @@ export default function OfficeSettings() {
 
   return (
     <DashboardLayout title="Settings">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Office Settings</h1>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="mb-2 text-2xl font-bold text-gray-900 sm:text-3xl">Office Settings</h1>
         <p className="text-gray-500">Configure geofencing and attendance thresholds.</p>
       </div>
 
@@ -78,7 +78,7 @@ export default function OfficeSettings() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 max-w-2xl">
+      <div className="max-w-2xl rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:p-8">
         <form onSubmit={handleSave} className="space-y-6">
           <div className="border-b border-gray-100 pb-6 mb-6">
             <h2 className="text-xl font-bold text-gray-900 mb-1 flex items-center gap-2"><MapPin className="text-brand" size={20} /> Location Coordinates</h2>
@@ -122,7 +122,7 @@ export default function OfficeSettings() {
             <button
               type="button"
               onClick={getCurrentLocation}
-              className="flex items-center gap-2 text-sm font-bold text-brand hover:text-blue-800 transition-colors"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 text-sm font-bold text-brand transition-colors hover:text-blue-800 sm:w-auto sm:bg-transparent sm:px-0"
             >
               <Navigation size={16} /> Use my current location
             </button>
@@ -214,7 +214,7 @@ export default function OfficeSettings() {
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center justify-center gap-2 bg-brand text-white px-8 py-3.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200 disabled:opacity-50"
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand px-8 py-3.5 font-bold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
             >
               <Save size={20} />
               {saving ? 'Saving...' : 'Save Changes'}

@@ -93,7 +93,7 @@ export default function EmployeeDashboard() {
     setPunching(true);
     try {
       const { data } = await api.post('/attendance/auto-check-in', { lat: currentPos[0], lng: currentPos[1] });
-      setMessage({ type: 'success', text: data.message });
+      setMessage({ type: 'success', text: punchSuccessMessage(data) });
       setTodayRecord(data.record);
       fetchData();
     } catch (err: any) {
@@ -119,7 +119,9 @@ export default function EmployeeDashboard() {
           const payload = { lat: position.coords.latitude, lng: position.coords.longitude };
           const endpoint = type === 'in' ? '/attendance/check-in' : '/attendance/check-out';
           const { data } = await api.post(endpoint, payload);
-          setMessage({ type: 'success', text: `${data.message}${data.distance !== undefined ? ` • ${data.distance}m from office` : ''}` });
+          const distanceText = data.distance !== undefined ? ` • ${data.distance}m from office` : '';
+          const successText = type === 'in' ? punchSuccessMessage(data) : data.message;
+          setMessage({ type: 'success', text: `${successText}${distanceText}` });
           setTodayRecord(data.record);
           fetchData(); // refresh history
         } catch (err: any) {
@@ -149,8 +151,8 @@ export default function EmployeeDashboard() {
 
   return (
     <DashboardLayout title="Dashboard">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Good morning, {user?.name}</h1>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Good morning, {user?.name}</h1>
         <p className="text-gray-500">{user?.organization?.name} • Today is {todayStr}</p>
       </div>
 
@@ -162,7 +164,7 @@ export default function EmployeeDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Main Status & Map Card */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6">
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 flex flex-col md:flex-row gap-6">
           <div className="flex-1 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-3 mb-6">
@@ -175,7 +177,7 @@ export default function EmployeeDashboard() {
                 </span>
               </div>
               
-              <div className="grid grid-cols-3 gap-4 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 sm:mb-8">
                 <div>
                   <div className="text-sm font-medium text-gray-500 mb-1">Check-in</div>
                   <div className="text-2xl font-bold text-brand">{todayRecord?.check_in_time ? todayRecord.check_in_time.substring(0, 5) : '--:--'}</div>
@@ -215,7 +217,7 @@ export default function EmployeeDashboard() {
                 <button 
                   onClick={() => handlePunch('in')}
                   disabled={punching}
-                  className="bg-brand text-white px-8 py-3.5 rounded-xl font-bold text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-200 disabled:opacity-50 flex items-center gap-2"
+                  className="w-full sm:w-auto min-h-12 justify-center bg-brand text-white px-8 py-4 rounded-xl font-bold text-base sm:text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-200 disabled:opacity-50 flex items-center gap-2"
                 >
                   <Fingerprint size={24} /> {punching ? 'Locating...' : 'Punch In'}
                 </button>
@@ -223,12 +225,12 @@ export default function EmployeeDashboard() {
                 <button 
                   onClick={() => handlePunch('out')}
                   disabled={punching}
-                  className="bg-brand text-white px-8 py-3.5 rounded-xl font-bold text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-200 disabled:opacity-50 flex items-center gap-2"
+                  className="w-full sm:w-auto min-h-12 justify-center bg-brand text-white px-8 py-4 rounded-xl font-bold text-base sm:text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-200 disabled:opacity-50 flex items-center gap-2"
                 >
                   <Fingerprint size={24} /> {punching ? 'Locating...' : 'Punch Out'}
                 </button>
               ) : (
-                <button disabled className="bg-gray-100 text-gray-400 px-8 py-3.5 rounded-xl font-bold text-lg cursor-not-allowed">
+                <button disabled className="w-full sm:w-auto min-h-12 bg-gray-100 text-gray-400 px-8 py-4 rounded-xl font-bold text-base sm:text-lg cursor-not-allowed">
                   Shift Completed
                 </button>
               )}
@@ -349,4 +351,19 @@ export default function EmployeeDashboard() {
       </div>
     </DashboardLayout>
   );
+}
+
+function punchSuccessMessage(data: any) {
+  if (!data?.record?.is_late) return data?.message || 'Checked in successfully';
+
+  if (data.emailAlert?.sent) {
+    return 'Checked in successfully • Marked Late • Email alert sent';
+  }
+  if (data.emailAlert?.skipped) {
+    return 'Checked in successfully • Marked Late • Email alert skipped';
+  }
+  if (data.emailAlert?.attempted && !data.emailAlert?.sent) {
+    return 'Checked in successfully • Marked Late • Email failed, attendance saved';
+  }
+  return 'Checked in successfully • Marked Late';
 }

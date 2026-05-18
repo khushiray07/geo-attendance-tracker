@@ -39,7 +39,7 @@ export default function AuditLogs() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#F4F7FE] border-b border-gray-100">
@@ -94,6 +94,44 @@ export default function AuditLogs() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="divide-y divide-gray-100 md:hidden">
+          {loading ? (
+            <div className="p-6 text-center text-gray-500">Loading logs...</div>
+          ) : logs.length === 0 ? (
+            <div className="p-6 text-center text-gray-500">No logs found.</div>
+          ) : (
+            logs.map((log) => (
+              <div key={log.id} className="p-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-black text-gray-900">{log.name}</div>
+                    <div className="mt-1 text-xs font-bold uppercase tracking-wider text-gray-500">{log.event_type.replace('-', ' ')}</div>
+                  </div>
+                  {log.accepted ? (
+                    <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-success-bg text-success-text">
+                      <CheckCircle size={14} /> Accepted
+                    </span>
+                  ) : (
+                    <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-danger-bg text-danger-text">
+                      <AlertCircle size={14} /> Rejected
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="text-xs font-bold uppercase text-gray-400">Time</div>
+                    <div className="font-medium text-gray-800">{new Date(log.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold uppercase text-gray-400">Distance</div>
+                    <div className="font-medium text-gray-800">{log.distance_from_office ? `${Math.round(log.distance_from_office)}m` : '--'}</div>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-lg bg-[#F4F7FE] p-3 text-sm text-gray-600">{log.reason || 'No reason recorded'}</div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </DashboardLayout>

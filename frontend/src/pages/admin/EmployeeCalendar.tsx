@@ -52,7 +52,7 @@ export default function EmployeeCalendar() {
                 className={`min-h-20 rounded-xl border p-2 text-left ${day.inMonth ? 'border-gray-100 bg-[#FAFBFF] hover:border-brand-light' : 'border-transparent'}`}
               >
                 <div className="font-black text-gray-900">{day.label}</div>
-                {day.inMonth && <div className={`mt-3 inline-flex rounded-full px-2 py-1 text-[11px] font-black ${badge.className}`}>{badge.text}</div>}
+                {day.inMonth && badge && <div className={`mt-3 inline-flex rounded-full px-2 py-1 text-[11px] font-black ${badge.className}`}>{badge.text}</div>}
               </button>
             );
           })}
@@ -92,10 +92,12 @@ function calendarDays(month: string) {
 }
 
 function statusLabel(record: any) {
-  if (!record) return { text: 'Absent', className: 'bg-gray-100 text-gray-500' };
+  if (!record) return null;
   if (record.attendance_type === 'work_from_home') return { text: 'WFH', className: 'bg-blue-50 text-blue-700' };
   if (record.attendance_type === 'on_duty') return { text: 'On Duty', className: 'bg-purple-50 text-purple-700' };
   if (record.attendance_type === 'leave') return { text: 'Leave', className: 'bg-gray-200 text-gray-700' };
+  if (record.status === 'absent') return { text: 'Absent', className: 'bg-gray-100 text-gray-600' };
+  if (record.check_in_time && !record.check_out_time) return { text: 'Missing Checkout', className: 'bg-danger-bg text-danger-text' };
   if (record.is_late) return { text: 'Late', className: 'bg-warning-bg text-warning-text' };
   return { text: 'Present', className: 'bg-success-bg text-success-text' };
 }
