@@ -117,7 +117,7 @@ Frontend production builds use `frontend/.env.production`:
 VITE_API_BASE_URL=/api
 ```
 
-Vercel rewrites `/api/*` to `https://geo-attendance-tracker.onrender.com/*`. If you rename the Render backend service, update the rewrite destination in `vercel.json` before redeploying.
+Vercel rewrites `/api/*` to `https://geo-attendance-tracker-36uv.onrender.com/*`. If Render gives you a different backend URL, update the rewrite destination in `vercel.json` before redeploying.
 
 On deployment, the root `npm start` runs migration and demo seeding before starting the backend, so these demo credentials are recreated safely:
 

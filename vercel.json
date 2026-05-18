@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://geo-attendance-tracker.onrender.com/:path*"
+      "destination": "https://geo-attendance-tracker-36uv.onrender.com/:path*"
     },
     {
       "source": "/(.*)",

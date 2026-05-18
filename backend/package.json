@@ -1,7 +1,7 @@
 {
   "scripts": {
     "dev": "tsx watch server.ts",
-    "start": "tsx server.ts",
+    "start": "npm run migrate && npm run seed && tsx server.ts",
     "build": "tsc",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
